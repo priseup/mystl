@@ -7,6 +7,7 @@
 #include "myhashfun.h"
 #include "myfunction.h"
 #include "myvector.h"
+#include "myconstruct.h"
 
 namespace my
 {
@@ -168,7 +169,7 @@ public:
     void push_front(const T& x)
     {
         pointer p = create_node(x);
-        p->next = m_ptr->next;
+        p->next = m_ptr;
         m_ptr = p;
     }
 
@@ -176,7 +177,7 @@ public:
     {
         return m_ptr = p;
     }
-    pointer get_header()
+    pointer get_header() const
     {
         return m_ptr;
     }
@@ -237,7 +238,7 @@ public:
         return first;
     }
 
-    pair<pointer, pointer>& equal_range(const key_type& key)
+    pair<pointer, pointer> equal_range(const key_type& key)
     {
         pointer first = find(key);
         pointer last = first ? first->next : NULL;
@@ -248,7 +249,7 @@ public:
         return pair<pointer, pointer>(first, last);
     }
 
-    pair<const_pointer, const_pointer>& equal_range(const key_type& key) const
+    pair<const_pointer, const_pointer> equal_range(const key_type& key) const
     {
         const_pointer first = find(key);
         const_pointer last = first ? first->next : NULL;
@@ -385,7 +386,7 @@ private:
     pointer create_node(const T& x)
     {
         pointer p = m_alloc.alloc(1);
-        p->data = x;
+        construct(&p->data, x);
         p->next = NULL;
 
         return p;
@@ -520,18 +521,18 @@ pair<iterator, iterator> equal_range(const Key& key)
     pair<pointer, pointer> p = hlist.equal_range(key);
 
     if (p.first == NULL)
-        return pair<const_iterator, const_iterator>(iterator(this, NULL),
+        return pair<iterator, iterator>(iterator(this, NULL),
                                                     iterator(this, NULL));
-    else if (p.last == NULL)
+    else if (p.second == NULL)
     {
         i++;
         while (i < m_bucket.size() && !m_bucket[i])
             i++;
         if (i < m_bucket.size())
-            p.last = m_bucket[i];
+            p.second = m_bucket[i];
 
-        return pair<const_iterator, const_iterator>(iterator(this, p.first),
-                                                    iterator(this, p.last));
+        return pair<iterator, iterator>(iterator(this, p.first),
+                                                    iterator(this, p.second));
     }
 }
 
@@ -769,17 +770,20 @@ void resize(size_type n)
     size_type old_size = m_bucket.size();
     if (n > old_size)
     {
-        size_type new_size = get_next_prime(n);
-        vector<pointer> tmp(new_size, 0);
-        for (size_type i = 0; i < old_size; i++)
-            while (pointer first = m_bucket[i])
-            {
-                size_type bucket_index = m_hash(m_get_key(first->data)) % new_size;
-                m_bucket[i] = first->next;
-                first->next = tmp[bucket_index];
-                tmp[bucket_index] = first;
-            }
-        m_bucket.swap(tmp);
+        size_type new_elements_count = get_next_prime(n);
+        if (new_elements_count > old_size)
+        {
+            vector<pointer> tmp(new_elements_count, 0);
+            for (size_type i = 0; i < old_size; i++)
+                while (pointer first = m_bucket[i])
+                {
+                    size_type bucket_index = m_hash(m_get_key(first->data)) % new_elements_count;
+                    m_bucket[i] = first->next;
+                    first->next = tmp[bucket_index];
+                    tmp[bucket_index] = first;
+                }
+            m_bucket.swap(tmp);
+        }
     }
 }
 
@@ -816,11 +820,12 @@ void clear()
 
 void swap(Self& t)
 {
-    swap(m_hash, t.m_hash);
-    swap(m_equal_key, t.m_equal_key);
-    swap(m_get_key, t.m_get_key);
-    swap(m_alloc, t.m_alloc);
-    swap(m_bucket, t.m_bucket);
+    my::swap(m_hash, t.m_hash);
+    my::swap(m_equal_key, t.m_equal_key);
+    my::swap(m_get_key, t.m_get_key);
+    my::swap(m_alloc, t.m_alloc);
+    my::swap(m_bucket, t.m_bucket);
+    my::swap(hlist, t.hlist);
 }
 
 size_type get_bucket_index(const key_type& key) const
